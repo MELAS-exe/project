@@ -1,16 +1,34 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Calendar, MapPin, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Search, Calendar, MapPin, CheckCircle, Clock, Edit2, Trash2, X } from 'lucide-react';
 import { apiService } from '../services/api';
-import type { Mission } from '../types';
+
+interface Mission {
+  id: number;
+  titre: string;
+  detail: string;
+  date: string;
+  destination: string;
+  statut: boolean;
+}
+
+interface Agent {
+  id: number;
+  prenom: string;
+  nom: string;
+}
 
 export function MissionsView() {
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'validated' | 'pending'>('all');
+  const [showModal, setShowModal] = useState(false);
+  const [editingMission, setEditingMission] = useState<Mission | null>(null);
 
   useEffect(() => {
     loadMissions();
+    loadAgents();
   }, []);
 
   const loadMissions = async () => {
@@ -26,10 +44,20 @@ export function MissionsView() {
     }
   };
 
+  const loadAgents = async () => {
+    try {
+      const data = await apiService.getAgents();
+      setAgents(data);
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+      setAgents([]);
+    }
+  };
+
   const filteredMissions = missions.filter((mission) => {
     const matchesSearch =
-      mission.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mission.destination.toLowerCase().includes(searchTerm.toLowerCase());
+      (mission.titre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (mission.destination || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     if (filterStatus === 'all') return matchesSearch;
     if (filterStatus === 'validated') return matchesSearch && mission.statut;
@@ -38,13 +66,55 @@ export function MissionsView() {
     return matchesSearch;
   });
 
+  const handleEdit = (mission: Mission) => {
+    setEditingMission(mission);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette mission ?')) {
+      return;
+    }
+
+    try {
+      await apiService.deleteMission(id);
+      setMissions(missions.filter((mission) => mission.id !== id));
+    } catch (error) {
+      console.error('Failed to delete mission:', error);
+      alert('Erreur lors de la suppression de la mission');
+    }
+  };
+
+  const handleValidate = async (id: number) => {
+    try {
+      await apiService.validateMission(id);
+      loadMissions();
+    } catch (error) {
+      console.error('Failed to validate mission:', error);
+      alert('Erreur lors de la validation de la mission');
+    }
+  };
+
+  const handleAddNew = () => {
+    setEditingMission(null);
+    setShowModal(true);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Missions</h1>
-        <button className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Missions</h1>
+          <p className="text-slate-600 mt-1">
+            Gérez les missions et leurs affectations
+          </p>
+        </div>
+        <button
+          onClick={handleAddNew}
+          className="flex items-center gap-2 px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors"
+        >
           <Plus className="w-5 h-5" />
-          <span>Nouvelle mission</span>
+          Nouvelle mission
         </button>
       </div>
 
@@ -110,10 +180,25 @@ export function MissionsView() {
             </div>
           ) : (
             filteredMissions.map((mission) => (
-              <MissionCard key={mission.id} mission={mission} onRefresh={loadMissions} />
+              <MissionCard
+                key={mission.id}
+                mission={mission}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onValidate={handleValidate}
+              />
             ))
           )}
         </div>
+      )}
+
+      {showModal && (
+        <MissionModal
+          mission={editingMission}
+          agents={agents}
+          onClose={() => setShowModal(false)}
+          onSave={loadMissions}
+        />
       )}
     </div>
   );
@@ -121,26 +206,21 @@ export function MissionsView() {
 
 interface MissionCardProps {
   mission: Mission;
-  onRefresh: () => void;
+  onEdit: (mission: Mission) => void;
+  onDelete: (id: number) => void;
+  onValidate: (id: number) => void;
 }
 
-function MissionCard({ mission, onRefresh }: MissionCardProps) {
+function MissionCard({ mission, onEdit, onDelete, onValidate }: MissionCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
-  };
-
-  const handleValidate = async () => {
-    try {
-      await apiService.validateMission(mission.id);
-      onRefresh();
-    } catch (error) {
-      console.error('Failed to validate mission:', error);
-    }
   };
 
   return (
@@ -176,19 +256,198 @@ function MissionCard({ mission, onRefresh }: MissionCardProps) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 ml-4">
+        <div className="flex gap-2 ml-4">
           {!mission.statut && (
             <button
-              onClick={handleValidate}
+              onClick={() => onValidate(mission.id)}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
             >
               Valider
             </button>
           )}
-          <button className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors text-sm font-medium">
-            Détails
+          <button
+            onClick={() => onEdit(mission)}
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors text-sm font-medium"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(mission.id)}
+            className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+interface MissionModalProps {
+  mission: Mission | null;
+  agents: Agent[];
+  onClose: () => void;
+  onSave: () => void;
+}
+
+function MissionModal({ mission, agents, onClose, onSave }: MissionModalProps) {
+  const [formData, setFormData] = useState({
+    titre: mission?.titre || '',
+    detail: mission?.detail || '',
+    date: mission?.date ? mission.date.substring(0, 16) : '',
+    destination: mission?.destination || '',
+    agentId: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const missionData = {
+        titre: formData.titre,
+        detail: formData.detail,
+        date: new Date(formData.date).toISOString(),
+        destination: formData.destination,
+        statut: false,
+      };
+
+      if (mission) {
+        await apiService.updateMission(mission.id, missionData);
+      } else {
+        if (!formData.agentId) {
+          setError('Veuillez sélectionner un agent');
+          setLoading(false);
+          return;
+        }
+        await apiService.createMission(parseInt(formData.agentId), missionData);
+      }
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Failed to save mission:', err);
+      setError('Erreur lors de l\'enregistrement de la mission');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+          <h2 className="text-2xl font-bold text-slate-900">
+            {mission ? 'Modifier Mission' : 'Nouvelle Mission'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Titre
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.titre}
+              onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Détails
+            </label>
+            <textarea
+              required
+              value={formData.detail}
+              onChange={(e) => setFormData({ ...formData, detail: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Destination
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.destination}
+              onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Date et heure
+            </label>
+            <input
+              type="datetime-local"
+              required
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+            />
+          </div>
+
+          {!mission && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Agent
+              </label>
+              <select
+                required
+                value={formData.agentId}
+                onChange={(e) => setFormData({ ...formData, agentId: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+              >
+                <option value="">Sélectionner un agent</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.prenom} {agent.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Enregistrement...' : (mission ? 'Mettre à jour' : 'Créer')}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, UserCircle, X } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, User, X } from 'lucide-react';
+import { apiService } from '../services/api';
 
 interface Chauffeur {
   id: number;
@@ -17,48 +18,27 @@ export function ChauffeursView() {
   const [editingChauffeur, setEditingChauffeur] = useState<Chauffeur | null>(null);
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // fetchChauffeurs();
-    setTimeout(() => {
-      setChauffeurs([
-        {
-          id: 1,
-          nom: 'Idrissi',
-          prenom: 'Hassan',
-          username: 'hidrissi',
-          password: '',
-        },
-        {
-          id: 2,
-          nom: 'Chakir',
-          prenom: 'Rachid',
-          username: 'rchakir',
-          password: '',
-        },
-        {
-          id: 3,
-          nom: 'Mansouri',
-          prenom: 'Said',
-          username: 'smansouri',
-          password: '',
-        },
-        {
-          id: 4,
-          nom: 'Bennani',
-          prenom: 'Omar',
-          username: 'obennani',
-          password: '',
-        },
-      ]);
-      setLoading(false);
-    }, 500);
+    loadChauffeurs();
   }, []);
+
+  const loadChauffeurs = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getChauffeurs();
+      setChauffeurs(data);
+    } catch (error) {
+      console.error('Failed to load chauffeurs:', error);
+      setChauffeurs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredChauffeurs = chauffeurs.filter(
     (chauffeur) =>
-      chauffeur.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      chauffeur.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      chauffeur.username.toLowerCase().includes(searchTerm.toLowerCase())
+      (chauffeur.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (chauffeur.prenom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (chauffeur.username || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (chauffeur: Chauffeur) => {
@@ -66,10 +46,17 @@ export function ChauffeursView() {
     setShowModal(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce chauffeur ?')) {
-      // TODO: API call to delete chauffeur
+  const handleDelete = async (id: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce chauffeur ?')) {
+      return;
+    }
+
+    try {
+      await apiService.deleteChauffeur(id);
       setChauffeurs(chauffeurs.filter((chauffeur) => chauffeur.id !== id));
+    } catch (error) {
+      console.error('Failed to delete chauffeur:', error);
+      alert('Erreur lors de la suppression du chauffeur');
     }
   };
 
@@ -84,7 +71,7 @@ export function ChauffeursView() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Chauffeurs</h1>
           <p className="text-slate-600 mt-1">
-            Gérez les chauffeurs affectés aux missions
+            Gérez les chauffeurs et leurs disponibilités
           </p>
         </div>
         <button
@@ -115,10 +102,10 @@ export function ChauffeursView() {
           <p className="mt-4 text-slate-600">Chargement des chauffeurs...</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredChauffeurs.length === 0 ? (
             <div className="col-span-full bg-white rounded-xl shadow-sm p-12 text-center">
-              <UserCircle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+              <User className="w-12 h-12 text-slate-400 mx-auto mb-4" />
               <p className="text-slate-600">Aucun chauffeur trouvé</p>
             </div>
           ) : (
@@ -138,18 +125,7 @@ export function ChauffeursView() {
         <ChauffeurModal
           chauffeur={editingChauffeur}
           onClose={() => setShowModal(false)}
-          onSave={(chauffeur) => {
-            if (editingChauffeur) {
-              // Update existing chauffeur
-              setChauffeurs(
-                chauffeurs.map((c) => (c.id === chauffeur.id ? chauffeur : c))
-              );
-            } else {
-              // Add new chauffeur
-              setChauffeurs([...chauffeurs, { ...chauffeur, id: Date.now() }]);
-            }
-            setShowModal(false);
-          }}
+          onSave={loadChauffeurs}
         />
       )}
     </div>
@@ -166,11 +142,11 @@ function ChauffeurCard({ chauffeur, onEdit, onDelete }: ChauffeurCardProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
-        <div className="p-3 bg-orange-100 rounded-lg">
-          <UserCircle className="w-8 h-8 text-orange-600" />
+        <div className="p-3 bg-indigo-100 rounded-lg">
+          <User className="w-8 h-8 text-indigo-600" />
         </div>
         <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-          Disponible
+          Actif
         </span>
       </div>
 
@@ -201,7 +177,7 @@ function ChauffeurCard({ chauffeur, onEdit, onDelete }: ChauffeurCardProps) {
 interface ChauffeurModalProps {
   chauffeur: Chauffeur | null;
   onClose: () => void;
-  onSave: (chauffeur: Chauffeur) => void;
+  onSave: () => void;
 }
 
 function ChauffeurModal({ chauffeur, onClose, onSave }: ChauffeurModalProps) {
@@ -214,10 +190,41 @@ function ChauffeurModal({ chauffeur, onClose, onSave }: ChauffeurModalProps) {
       password: '',
     }
   );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (chauffeur) {
+        // Update existing chauffeur
+        const updateData: any = {
+          nom: formData.nom,
+          prenom: formData.prenom,
+          username: formData.username,
+        };
+        
+        // Only include password if it was changed
+        if (formData.password) {
+          updateData.password = formData.password;
+        }
+        
+        await apiService.updateChauffeur(chauffeur.id, updateData);
+      } else {
+        // Create new chauffeur
+        await apiService.createChauffeur(formData);
+      }
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Failed to save chauffeur:', err);
+      setError('Erreur lors de l\'enregistrement du chauffeur');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -236,6 +243,12 @@ function ChauffeurModal({ chauffeur, onClose, onSave }: ChauffeurModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -302,15 +315,17 @@ function ChauffeurModal({ chauffeur, onClose, onSave }: ChauffeurModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
-              {chauffeur ? 'Mettre à jour' : 'Créer'}
+              {loading ? 'Enregistrement...' : (chauffeur ? 'Mettre à jour' : 'Créer')}
             </button>
           </div>
         </form>

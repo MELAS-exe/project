@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Wrench, X } from 'lucide-react';
+import { apiService } from '../services/api';
 
 interface ChefGarage {
   id: number;
@@ -17,41 +18,27 @@ export function ChefGaragesView() {
   const [editingChefGarage, setEditingChefGarage] = useState<ChefGarage | null>(null);
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // fetchChefGarages();
-    setTimeout(() => {
-      setChefGarages([
-        {
-          id: 1,
-          nom: 'Mouhib',
-          prenom: 'Samir',
-          username: 'smouhib',
-          password: '',
-        },
-        {
-          id: 2,
-          nom: 'Kettani',
-          prenom: 'Nabil',
-          username: 'nkettani',
-          password: '',
-        },
-        {
-          id: 3,
-          nom: 'Fahmi',
-          prenom: 'Driss',
-          username: 'dfahmi',
-          password: '',
-        },
-      ]);
-      setLoading(false);
-    }, 500);
+    loadChefGarages();
   }, []);
+
+  const loadChefGarages = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getChefGarages();
+      setChefGarages(data);
+    } catch (error) {
+      console.error('Failed to load chef garages:', error);
+      setChefGarages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredChefGarages = chefGarages.filter(
     (chef) =>
-      chef.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      chef.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      chef.username.toLowerCase().includes(searchTerm.toLowerCase())
+      (chef.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (chef.prenom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (chef.username || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (chef: ChefGarage) => {
@@ -59,10 +46,17 @@ export function ChefGaragesView() {
     setShowModal(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce chef de garage ?')) {
-      // TODO: API call to delete chef garage
+  const handleDelete = async (id: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce chef de garage ?')) {
+      return;
+    }
+
+    try {
+      await apiService.deleteChefGarage(id);
       setChefGarages(chefGarages.filter((chef) => chef.id !== id));
+    } catch (error) {
+      console.error('Failed to delete chef garage:', error);
+      alert('Erreur lors de la suppression du chef de garage');
     }
   };
 
@@ -131,18 +125,7 @@ export function ChefGaragesView() {
         <ChefGarageModal
           chefGarage={editingChefGarage}
           onClose={() => setShowModal(false)}
-          onSave={(chef) => {
-            if (editingChefGarage) {
-              // Update existing chef garage
-              setChefGarages(
-                chefGarages.map((c) => (c.id === chef.id ? chef : c))
-              );
-            } else {
-              // Add new chef garage
-              setChefGarages([...chefGarages, { ...chef, id: Date.now() }]);
-            }
-            setShowModal(false);
-          }}
+          onSave={loadChefGarages}
         />
       )}
     </div>
@@ -194,7 +177,7 @@ function ChefGarageCard({ chefGarage, onEdit, onDelete }: ChefGarageCardProps) {
 interface ChefGarageModalProps {
   chefGarage: ChefGarage | null;
   onClose: () => void;
-  onSave: (chef: ChefGarage) => void;
+  onSave: () => void;
 }
 
 function ChefGarageModal({ chefGarage, onClose, onSave }: ChefGarageModalProps) {
@@ -207,10 +190,41 @@ function ChefGarageModal({ chefGarage, onClose, onSave }: ChefGarageModalProps) 
       password: '',
     }
   );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (chefGarage) {
+        // Update existing chef garage
+        const updateData: any = {
+          nom: formData.nom,
+          prenom: formData.prenom,
+          username: formData.username,
+        };
+        
+        // Only include password if it was changed
+        if (formData.password) {
+          updateData.password = formData.password;
+        }
+        
+        await apiService.updateChefGarage(chefGarage.id, updateData);
+      } else {
+        // Create new chef garage
+        await apiService.createChefGarage(formData);
+      }
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Failed to save chef garage:', err);
+      setError('Erreur lors de l\'enregistrement du chef de garage');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -229,6 +243,12 @@ function ChefGarageModal({ chefGarage, onClose, onSave }: ChefGarageModalProps) 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -295,15 +315,17 @@ function ChefGarageModal({ chefGarage, onClose, onSave }: ChefGarageModalProps) 
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
-              {chefGarage ? 'Mettre à jour' : 'Créer'}
+              {loading ? 'Enregistrement...' : (chefGarage ? 'Mettre à jour' : 'Créer')}
             </button>
           </div>
         </form>

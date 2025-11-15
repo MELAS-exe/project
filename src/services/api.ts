@@ -67,7 +67,12 @@ class ApiService {
     });
 
     if (!response.ok) throw new Error('Failed to create admin');
-    return response.json();
+    
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return response.text();
   }
 
   async updateAdmin(
@@ -137,7 +142,12 @@ class ApiService {
     });
 
     if (!response.ok) throw new Error('Failed to create agent');
-    return response.json();
+    
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return response.text();
   }
 
   async updateAgent(
@@ -206,7 +216,12 @@ class ApiService {
     });
 
     if (!response.ok) throw new Error('Failed to create chauffeur');
-    return response.json();
+    
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return response.text();
   }
 
   async updateChauffeur(
@@ -269,12 +284,20 @@ class ApiService {
   }) {
     const response = await fetch(`${API_BASE_URL}/auth/register/chefGarage`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(true),
       body: JSON.stringify(chefGarageData),
     });
 
-    if (!response.ok) throw new Error('Failed to create chef garage');
-    return response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create chef garage: ${response.status} - ${errorText}`);
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return response.text();
   }
 
   async updateChefGarage(

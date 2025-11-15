@@ -33,6 +33,8 @@ function App() {
   const renderDashboardContent = () => {
     switch (currentView) {
       case 'overview':
+
+          
         return <Overview />;
       case 'missions':
         return <MissionsView />;

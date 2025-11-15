@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, User, X, MapPin } from 'lucide-react';
+import { apiService } from '../services/api';
 
 interface Agent {
   id: number;
@@ -18,45 +19,28 @@ export function AgentsView() {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // fetchAgents();
-    setTimeout(() => {
-      setAgents([
-        {
-          id: 1,
-          prenom: 'Youssef',
-          nom: 'Benjelloun',
-          username: 'ybenjelloun',
-          password: '',
-          adresse: '12 Rue Hassan II, Casablanca',
-        },
-        {
-          id: 2,
-          prenom: 'Amina',
-          nom: 'El Fassi',
-          username: 'aelfassi',
-          password: '',
-          adresse: '45 Avenue Mohammed V, Rabat',
-        },
-        {
-          id: 3,
-          prenom: 'Karim',
-          nom: 'Tazi',
-          username: 'ktazi',
-          password: '',
-          adresse: '78 Boulevard Zerktouni, Marrakech',
-        },
-      ]);
-      setLoading(false);
-    }, 500);
+    loadAgents();
   }, []);
+
+  const loadAgents = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getAgents();
+      setAgents(data);
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+      setAgents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredAgents = agents.filter(
     (agent) =>
-      agent.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.adresse.toLowerCase().includes(searchTerm.toLowerCase())
+      (agent.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (agent.prenom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (agent.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (agent.adresse || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (agent: Agent) => {
@@ -64,10 +48,17 @@ export function AgentsView() {
     setShowModal(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet agent ?')) {
-      // TODO: API call to delete agent
+  const handleDelete = async (id: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet agent ?')) {
+      return;
+    }
+
+    try {
+      await apiService.deleteAgent(id);
       setAgents(agents.filter((agent) => agent.id !== id));
+    } catch (error) {
+      console.error('Failed to delete agent:', error);
+      alert('Erreur lors de la suppression de l\'agent');
     }
   };
 
@@ -82,7 +73,7 @@ export function AgentsView() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Agents</h1>
           <p className="text-slate-600 mt-1">
-            Gérez les agents responsables des missions
+            Gérez les agents de terrain et leurs affectations
           </p>
         </div>
         <button
@@ -136,18 +127,7 @@ export function AgentsView() {
         <AgentModal
           agent={editingAgent}
           onClose={() => setShowModal(false)}
-          onSave={(agent) => {
-            if (editingAgent) {
-              // Update existing agent
-              setAgents(
-                agents.map((a) => (a.id === agent.id ? agent : a))
-              );
-            } else {
-              // Add new agent
-              setAgents([...agents, { ...agent, id: Date.now() }]);
-            }
-            setShowModal(false);
-          }}
+          onSave={loadAgents}
         />
       )}
     </div>
@@ -175,11 +155,11 @@ function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
       <h3 className="text-xl font-semibold text-slate-900 mb-1">
         {agent.prenom} {agent.nom}
       </h3>
-      <p className="text-slate-600 text-sm mb-3">@{agent.username}</p>
+      <p className="text-slate-600 text-sm mb-2">@{agent.username}</p>
 
-      <div className="flex items-start gap-2 text-slate-600 mb-4">
-        <MapPin className="w-4 h-4 mt-1 flex-shrink-0" />
-        <p className="text-sm">{agent.adresse}</p>
+      <div className="flex items-start gap-2 text-slate-600 text-sm mb-4">
+        <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <p className="line-clamp-2">{agent.adresse}</p>
       </div>
 
       <div className="flex gap-2">
@@ -204,7 +184,7 @@ function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
 interface AgentModalProps {
   agent: Agent | null;
   onClose: () => void;
-  onSave: (agent: Agent) => void;
+  onSave: () => void;
 }
 
 function AgentModal({ agent, onClose, onSave }: AgentModalProps) {
@@ -218,10 +198,42 @@ function AgentModal({ agent, onClose, onSave }: AgentModalProps) {
       adresse: '',
     }
   );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (agent) {
+        // Update existing agent
+        const updateData: any = {
+          prenom: formData.prenom,
+          nom: formData.nom,
+          username: formData.username,
+          adresse: formData.adresse,
+        };
+        
+        // Only include password if it was changed
+        if (formData.password) {
+          updateData.password = formData.password;
+        }
+        
+        await apiService.updateAgent(agent.id, updateData);
+      } else {
+        // Create new agent
+        await apiService.createAgent(formData);
+      }
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Failed to save agent:', err);
+      setError('Erreur lors de l\'enregistrement de l\'agent');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -240,6 +252,12 @@ function AgentModal({ agent, onClose, onSave }: AgentModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -321,15 +339,17 @@ function AgentModal({ agent, onClose, onSave }: AgentModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
-              {agent ? 'Mettre à jour' : 'Créer'}
+              {loading ? 'Enregistrement...' : (agent ? 'Mettre à jour' : 'Créer')}
             </button>
           </div>
         </form>

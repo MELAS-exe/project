@@ -37,10 +37,10 @@ export function AdminsView() {
 
   const filteredAdmins = admins.filter(
     (admin) =>
-      admin.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      admin.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      admin.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      admin.role.toLowerCase().includes(searchTerm.toLowerCase())
+      (admin.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (admin.prenom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (admin.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (admin.role || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (admin: Admin) => {
@@ -139,18 +139,7 @@ export function AdminsView() {
         <AdminModal
           admin={editingAdmin}
           onClose={() => setShowModal(false)}
-          onSave={(admin) => {
-            if (editingAdmin) {
-              // Update existing admin
-              setAdmins(
-                admins.map((a) => (a.id === admin.id ? admin : a))
-              );
-            } else {
-              // Add new admin
-              setAdmins([...admins, { ...admin, id: Date.now() }]);
-            }
-            setShowModal(false);
-          }}
+          onSave={loadAdmins}
         />
       )}
     </div>
@@ -165,14 +154,16 @@ interface AdminCardProps {
 }
 
 function AdminCard({ admin, onEdit, onDelete, getRoleBadgeColor }: AdminCardProps) {
+  const roleDisplay = admin.role ? admin.role.replace('_', ' ') : 'N/A';
+  
   return (
     <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="p-3 bg-slate-100 rounded-lg">
           <Shield className="w-8 h-8 text-slate-600" />
         </div>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleBadgeColor(admin.role)}`}>
-          {admin.role.replace('_', ' ')}
+        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleBadgeColor(admin.role || '')}`}>
+          {roleDisplay}
         </span>
       </div>
 
@@ -203,7 +194,7 @@ function AdminCard({ admin, onEdit, onDelete, getRoleBadgeColor }: AdminCardProp
 interface AdminModalProps {
   admin: Admin | null;
   onClose: () => void;
-  onSave: (admin: Admin) => void;
+  onSave: () => void;
 }
 
 function AdminModal({ admin, onClose, onSave }: AdminModalProps) {
@@ -241,14 +232,12 @@ function AdminModal({ admin, onClose, onSave }: AdminModalProps) {
         }
         
         await apiService.updateAdmin(admin.id, updateData);
-        onSave({ ...formData, id: admin.id });
       } else {
         // Create new admin
-        const result = await apiService.createAdmin(formData);
-        onSave(formData);
-        // Reload to get the actual data from server
-        window.location.reload();
+        await apiService.createAdmin(formData);
       }
+      onSave();
+      onClose();
     } catch (err) {
       console.error('Failed to save admin:', err);
       setError('Erreur lors de l\'enregistrement de l\'administrateur');
