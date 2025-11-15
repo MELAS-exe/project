@@ -8,6 +8,10 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
+  User,
+  UserCircle,
+  Wrench,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -20,12 +24,19 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, currentView, onNavigate, onLogout }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const menuItems = [
+  const mainMenuItems = [
     { id: 'overview', label: 'Tableau de bord', icon: LayoutDashboard },
     { id: 'missions', label: 'Missions', icon: MapPin },
     { id: 'vehicles', label: 'Véhicules', icon: Truck },
     { id: 'assignments', label: 'Affectations', icon: Users },
     { id: 'reports', label: 'Rapports', icon: FileText },
+  ];
+
+  const userMenuItems = [
+    { id: 'admins', label: 'Administrateurs', icon: Shield },
+    { id: 'agents', label: 'Agents', icon: User },
+    { id: 'chauffeurs', label: 'Chauffeurs', icon: UserCircle },
+    { id: 'chefgarages', label: 'Chefs de Garage', icon: Wrench },
   ];
 
   return (
@@ -60,31 +71,70 @@ export function DashboardLayout({ children, currentView, onNavigate, onLogout }:
         <aside
           className={`${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } lg:translate-x-0 fixed lg:static inset-y-0 left-0 w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out z-40 mt-16 lg:mt-0`}
+          } lg:translate-x-0 fixed lg:static inset-y-0 left-0 w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out z-40 mt-16 lg:mt-0 overflow-y-auto`}
         >
-          <nav className="p-4 space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentView === item.id;
+          <nav className="p-4 space-y-6">
+            {/* Main Navigation */}
+            <div>
+              <h3 className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Principal
+              </h3>
+              <div className="space-y-1">
+                {mainMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentView === item.id;
 
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    onNavigate(item.id);
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-slate-100 text-slate-900 font-medium'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        onNavigate(item.id);
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                        isActive
+                          ? 'bg-slate-100 text-slate-900 font-medium'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* User Management Section */}
+            <div>
+              <h3 className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Gestion des Utilisateurs
+              </h3>
+              <div className="space-y-1">
+                {userMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentView === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        onNavigate(item.id);
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                        isActive
+                          ? 'bg-slate-100 text-slate-900 font-medium'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </nav>
         </aside>
 

@@ -7,6 +7,11 @@ import { MissionsView } from './components/MissionsView';
 import { VehiclesView } from './components/VehiclesView';
 import { AssignmentsView } from './components/AssignmentsView';
 import { ReportsView } from './components/ReportsView';
+import { AdminsView } from './components/AdminsViews';
+import { AgentsView } from './components/AgentsViews';
+import { ChauffeursView } from './components/ChauffeurViews';
+import { ChefGaragesView } from './components/ChefGaragesViews';
+
 
 type AppState = 'landing' | 'login' | 'dashboard';
 
@@ -37,6 +42,14 @@ function App() {
         return <AssignmentsView />;
       case 'reports':
         return <ReportsView />;
+      case 'admins':
+        return <AdminsView />;
+      case 'agents':
+        return <AgentsView />;
+      case 'chauffeurs':
+        return <ChauffeursView />;
+      case 'chefgarages':
+        return <ChefGaragesView />;
       default:
         return <Overview />;
     }
