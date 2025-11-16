@@ -335,12 +335,13 @@ function AdminModal({ admin, onClose, onSave }: AdminModalProps) {
               Rôle
             </label>
             <select
-              value={formData.role}
+              value={formData.role || ''}
               onChange={(e) =>
                 setFormData({ ...formData, role: e.target.value })
               }
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
             >
+              <option value="" disabled>Choisir un rôle</option>
               <option value="ADMIN">Admin</option>
               <option value="SUPER_ADMIN">Super Admin</option>
             </select>
